@@ -34,7 +34,7 @@ public abstract class ResultSetIteratorBase<T> implements Iterator<T> {
     }
 
     // fields needed to properly implement
-    private T next; // keep track of next item in case hasNext() is called multiple times
+    private Option<T> next; // keep track of next item in case hasNext() is called multiple times
     private boolean resultSetFinished; // used to note when result set exhausted
 
     public boolean hasNext() {
@@ -67,7 +67,7 @@ public abstract class ResultSetIteratorBase<T> implements Iterator<T> {
             throw new NoSuchElementException();
         }
 
-        T result = next;
+        T result = next.hasValue() ? next.get() : null;
 
         next = null;
 
@@ -78,22 +78,40 @@ public abstract class ResultSetIteratorBase<T> implements Iterator<T> {
         throw new UnsupportedOperationException();
     }
 
-    private T safeReadNext()
+    private Option<T> safeReadNext()
     {
         try {
-            if (rs.next()) {
-                return readNext();
-            }
+            if (!rs.next())
+                return null;
+
+            return new Option(readNext());
         }
         catch (SQLException ex) {
             throw new Sql2oException("Database error: " + ex.getMessage(), ex);
         }
-        return null;
     }
 
     protected abstract T readNext() throws SQLException;
 
     protected String getColumnName(int colIdx) throws SQLException {
         return quirks.getColumnName(meta, colIdx);
+    }
+
+    private final class Option<T> {
+        private final T value;
+        private final boolean none;
+
+        public Option(T value) {
+            this.none = (value == null);
+            this.value = value;
+        }
+
+        public T get() {
+            return this.value;
+        }
+
+        public boolean hasValue() {
+            return !this.none;
+        }
     }
 }
